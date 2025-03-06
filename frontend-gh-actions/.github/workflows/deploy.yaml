@@ -1,36 +1,41 @@
 name: Deploy Frontend
+
 on:
   push:
     branches:
-      - master  # Change to match your repo's branch
+      - master
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      - name: Build Docker Image
-        run: docker build -t cygnetops/react-test -f Dockerfile.dev .
-
-      - name: Run Tests
-        run: docker run -e CI=true cygnetops/react-test npm test
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Generate deployment package
         run: zip -r deploy.zip . -x '*.git*'
 
-      - name: Deploy to EB
-        uses: einaregilsson/beanstalk-deploy@v18
-        with:
-          application_name: test
-          environment_name: test-env
-          existing_bucket_name: elasticbeanstalk-us-east-1-487940824690
-          region: us-east-1
-          version_label: ${{ github.sha }}
-          deployment_package: deploy.zip
-env:
-    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Upload to S3
+        run: |
+          aws s3 cp deploy.zip s3://elasticbeanstalk-us-east-1-487940824690/deploy-${{ github.sha }}.zip
+
+      - name: Create new application version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name test \
+            --version-label ${{ github.sha }} \
+            --source-bundle S3Bucket="elasticbeanstalk-us-east-1-487940824690",S3Key="deploy-${{ github.sha }}.zip"
+
+      - name: Deploy application version to environment
+        run: |
+          aws elasticbeanstalk update-environment \
+            --environment-name test-env \
+            --version-label ${{ github.sha }}
