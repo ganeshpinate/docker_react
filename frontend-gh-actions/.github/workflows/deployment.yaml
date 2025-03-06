@@ -29,7 +29,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         with:
           application_name: test
-          environment_name: test-env
+          environment_name: Test-env
           existing_bucket_name: elasticbeanstalk-us-east-1-487940824690
           region: us-east-1
           version_label: ${{ github.sha }}
